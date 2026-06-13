@@ -1,0 +1,19 @@
+*
+* IRIX 6.5 USB Mass-Storage class driver "usbms" descriptive file.
+* Install as /var/sysgen/master.d/usbms
+*
+* Flags (modelled on usbaudio_dd's "cso" — a USB class driver that DEPENDS
+* on the usb framework — plus block-device support):
+*   c : character device (usbms_open/close/read/write/ioctl)
+*   b : block device     (usbms_strategy/size)
+*   s : software driver  (no EDT hardware probe; we attach via the USB core)
+*   o : loadable module  (as used by usbaudio_dd)
+*
+* DEPENDENCIES: usb  — ml(1M) loads the usb framework first and resolves the
+* usb_* symbols (usb_driver_register, usb_bulk_trans_synch, ...) for us.
+*
+* SOFT (external major) is left "-" (dynamically assigned).
+*
+*  FLAG   PREFIX     SOFT  #DEV  DEPENDENCIES
+cbso       usbms_     -     -     usb
+$$$

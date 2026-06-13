@@ -1,0 +1,5 @@
+*
+* Lboot config file for IRIX 6.5 driver "usbms".
+* Install as /var/sysgen/system/usbms.sm
+*
+USE: usbms
