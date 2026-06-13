@@ -78,8 +78,11 @@ mount -t xfs /hw/usb/disk/0/block /YOUR/MOUNTPOINT
 
 ### FAT32
 
-To read fat32 partitions, you first need to install the [fat32 module](https://github.com/techomancer/fat32).
+Install the [fat32 module](https://github.com/techomancer/fat32)
 
-Mounting FAT32 does not work yet and is under investigation.
+```sh
+mount_fat32 /hw/usb/disk/0/block /YOUR/MOUNTPOINT
+```
+
 
 

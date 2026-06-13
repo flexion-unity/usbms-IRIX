@@ -849,8 +849,29 @@ usbms_strategy(struct buf *bp)
 	int   mapped = 0;
 	caddr_t addr;
 
-	if (sc == NULL || sc->sc_gone ||
-	    sc->sc_blksize == 0 || sc->sc_nblocks == 0) {
+	if (sc == NULL || sc->sc_gone) {
+		bp->b_flags |= B_ERROR;
+		bp->b_error = ENXIO;
+		bp->b_resid = bp->b_bcount;
+		biodone(bp);
+		return;
+	}
+
+	/*
+	 * Lazily bring the device up.  The blocking SCSI bring-up (INQUIRY /
+	 * TEST UNIT READY / READ CAPACITY) that fills in sc_blksize/sc_nblocks
+	 * normally runs from usbms_open(). But a filesystem can issue
+	 * buffer-cache reads (bread) against our dev_t WITHOUT first opening the
+	 * block device. The FAT32 mount path does exactly this (lookupname +
+	 * bread, no VOP_OPEN) - so open() never ran, the geometry is still zero,
+	 * and the very first read of sector 0 used to fail with ENXIO.  Run setup
+	 * here too: we're in the bread() caller's (sleepable) context, where this
+	 * driver already sleeps for its bulk transfers.  Idempotent via sc_ready.
+	 */
+	if (!sc->sc_ready)
+		(void)usbms_setup(sc);
+
+	if (sc->sc_blksize == 0 || sc->sc_nblocks == 0) {
 		bp->b_flags |= B_ERROR;
 		bp->b_error = ENXIO;
 		bp->b_resid = bp->b_bcount;
