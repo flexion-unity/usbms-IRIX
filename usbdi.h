@@ -85,7 +85,24 @@ extern usb_status_t usb_bulk_trans_synch(usb_pipe_t pipe, void *buf, int len,
 extern usb_status_t usb_bulk_trans(usb_pipe_t, void *buf, int len, void *cb, void *cb_arg, int flags, int tmo);
 
 /* ---- control transfers ---- */
-extern void         usb_setup_init(void *setup8, int bmReqType, int bReq, int wValue, int wIndex, int wLength);
+/*
+ * usb_setup_init() builds the 8-byte SETUP packet.  The bmRequestType byte is
+ * passed EXPANDED into its three sub-fields, and wLength comes LAST - eight
+ * args total (verified by disassembly of the IRIX usb.o):
+ *     setup8[0] = (dir&1)<<7 | (type&3)<<5 | (recip&0x1f)   bmRequestType
+ *     setup8[1] = bRequest
+ *     setup8[2:3] = wValue   (LE)
+ *     setup8[4:5] = wIndex   (LE)
+ *     setup8[6:7] = wLength  (LE)   <- usb_command() copies this many data bytes
+ *   dir:   0 = OUT (host->dev), 1 = IN (dev->host)
+ *   type:  0 = standard, 1 = class, 2 = vendor
+ *   recip: 0 = device, 1 = interface, 2 = endpoint
+ * NOTE: a previous 6-arg declaration (packed bmRequestType, wLength 6th) left
+ * wLength sourced from an unset arg register; usb_command() then memcpy'd that
+ * garbage byte-count into the caller's data buffer and panicked.
+ */
+extern void         usb_setup_init(void *setup8, int dir, int type, int recip,
+                                   int bReq, int wValue, int wIndex, int wLength);
 extern usb_status_t usb_command(usb_pipe_t ctrl_pipe, void *setup8, void *data, int length);
 
 /* ---- IRIX glue (usb_irix.o) ----
