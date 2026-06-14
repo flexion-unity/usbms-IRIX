@@ -266,18 +266,25 @@ usbms_find_endpoints(struct usbms_softc *sc)
 static void
 usbms_get_max_lun(struct usbms_softc *sc)
 {
-	unsigned char setup[8];
-	unsigned char data = 0;
+	/* Setup packet AND data stage must live in a DMA-able buffer: on IP35
+	 * the control path (usb_ohci_command_start) DMA-maps the buffer we pass,
+	 * so a bare kernel-stack pointer faults the framework's memcpy.  Reuse
+	 * sc_dma (already allocated by this point in usbms_setup) -the same
+	 * reason every other transfer here bounces through usb_malloc'd memory. */
+	unsigned char *setup = sc->sc_dma;	/* [0..7]  = setup packet */
+	unsigned char *data  = sc->sc_dma + 8;	/* [8]     = returned LUN */
 	usb_pipe_t ctrl = usb_iface_defpipe(sc->sc_iface);
 	usb_status_t st;
+
+	*data = 0;
 
 	/* bmRequestType=0xA1 (IN|class|interface), bRequest=0xFE, wLen=1 */
 	usb_setup_init(setup, 0xA1, MSC_REQ_GET_MAX_LUN, 0,
 	    usb_iface_number(sc->sc_iface), 1);
-	st = usb_command(ctrl, setup, &data, 1);
+	st = usb_command(ctrl, setup, data, 1);
 
 	if (USB_IS_OK(st))
-		sc->sc_maxlun = data;
+		sc->sc_maxlun = *data;
 	else
 		sc->sc_maxlun = 0;	/* STALL => single-LUN device */
 
