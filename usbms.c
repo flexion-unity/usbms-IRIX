@@ -266,18 +266,33 @@ usbms_find_endpoints(struct usbms_softc *sc)
 static void
 usbms_get_max_lun(struct usbms_softc *sc)
 {
-	unsigned char setup[8];
-	unsigned char data = 0;
+	/* Build the SETUP packet and receive the LUN byte in sc_dma (already
+	 * allocated by this point in usbms_setup): the control path DMAs both, so
+	 * keep them out of the kernel stack like every other transfer here. */
+	unsigned char *setup = sc->sc_dma;	/* [0..7]  = setup packet */
+	unsigned char *data  = sc->sc_dma + 8;	/* [8]     = returned LUN */
 	usb_pipe_t ctrl = usb_iface_defpipe(sc->sc_iface);
 	usb_status_t st;
 
-	/* bmRequestType=0xA1 (IN|class|interface), bRequest=0xFE, wLen=1 */
-	usb_setup_init(setup, 0xA1, MSC_REQ_GET_MAX_LUN, 0,
-	    usb_iface_number(sc->sc_iface), 1);
-	st = usb_command(ctrl, setup, &data, 1);
+	*data = 0;
+
+	/* GET MAX LUN: bmRequestType 0xA1 = IN | class | interface.
+	 * usb_setup_init() wants that byte EXPANDED into (dir,type,recip) and
+	 * takes wLength LAST - see usbdi.h.  The old packed 6-arg form left
+	 * wLength as a garbage arg register, which usb_command() used as its
+	 * data-copy length and panicked (memcpy overrun of the data buffer). */
+	usb_setup_init(setup,
+	    1,					/* dir   = IN        */
+	    1,					/* type  = class     */
+	    1,					/* recip = interface */
+	    MSC_REQ_GET_MAX_LUN,		/* bRequest          */
+	    0,					/* wValue            */
+	    usb_iface_number(sc->sc_iface),	/* wIndex            */
+	    1);					/* wLength           */
+	st = usb_command(ctrl, setup, data, 1);
 
 	if (USB_IS_OK(st))
-		sc->sc_maxlun = data;
+		sc->sc_maxlun = *data;
 	else
 		sc->sc_maxlun = 0;	/* STALL => single-LUN device */
 
